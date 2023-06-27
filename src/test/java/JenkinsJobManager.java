@@ -19,7 +19,7 @@ import java.io.StringWriter;
 import java.util.Map;
 
 public class JenkinsJobManager {
-    public static void changeChoiceParameter(String jobName, String key, String value) throws Exception {
+    public static void changeChoiceParameter(String jobName, String key, String newValue) throws Exception {
         String jenkinsUrl = "http://localhost:8081";
         String username = "testApi";
         String password = "testApi";
@@ -39,7 +39,7 @@ public class JenkinsJobManager {
         Response response = RestAssured.get(configUrl);
         String jobConfig = response.getBody().asString();
 
-        // Parse the job configuration XML
+        // Parse the XML
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         DocumentBuilder builder = factory.newDocumentBuilder();
         Document document = builder.parse(new InputSource(new StringReader(jobConfig)));
@@ -50,20 +50,24 @@ public class JenkinsJobManager {
             Element nameElement = (Element) nodeList.item(i);
             String nameValue = nameElement.getTextContent();
             if (nameValue.equals(key)) {
-                Node valueNode = nameElement.getNextSibling();
-                while (valueNode != null && valueNode.getNodeType() != Node.ELEMENT_NODE) {
-                    valueNode = valueNode.getNextSibling();
+                // Find the corresponding choices element
+                Node choicesNode = nameElement.getNextSibling();
+                while (choicesNode != null && choicesNode.getNodeType() != Node.ELEMENT_NODE) {
+                    choicesNode = choicesNode.getNextSibling();
                 }
-                if (valueNode != null) {
-                    Element valueElement = (Element) valueNode;
-                    valueElement.setTextContent(value);
+                if (choicesNode != null && choicesNode.getNodeName().equals("choices")) {
+                    NodeList stringNodes = ((Element) choicesNode).getElementsByTagName("string");
+                    for (int j = 0; j < stringNodes.getLength(); j++) {
+                        Element stringElement = (Element) stringNodes.item(j);
+                        stringElement.setTextContent(newValue);
+                    }
                     break;
                 }
             }
         }
         String updatedXml = documentToString(document);
 
-        // Send a new xml to Jenkins API
+        // Send updated xml to Jenkins API
         RestAssured.given()
                 .header("Content-Type", "text/xml")
                 .header(crumbField, crumb)
