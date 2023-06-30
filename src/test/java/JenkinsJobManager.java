@@ -32,8 +32,7 @@ public class JenkinsJobManager {
         CrumbData crumbData = getCrumbData();
 
         // Get the xml
-        Response response = RestAssured.get(configUrl);
-        String jobConfig = response.getBody().asString();
+        String jobConfig = getJobConfigXml(configUrl);
 
         // Parse XML
         String updatedXml = updateChoiceParameterXml(jobConfig, key, newValue);
@@ -51,14 +50,19 @@ public class JenkinsJobManager {
         CrumbData crumbData = getCrumbData();
 
         // Get the xml
-        Response response = RestAssured.get(configUrl);
-        String jobConfig = response.getBody().asString();
+        String jobConfig = getJobConfigXml(configUrl);
 
         // Parse XML
         String updatedXml = updateGitXml(jobConfig, gitUrl, credentialsId, branchName);
 
         // Send updated xml to Jenkins API
         sendUpdatedXml(crumbData, updatedXml, configUrl);
+    }
+
+    private String getJobConfigXml(String configUrl) {
+        Response response = RestAssured.get(configUrl);
+
+        return response.getBody().asString();
     }
 
     private void sendUpdatedXml(CrumbData crumbData, String updatedXml, String configUrl) {
@@ -76,6 +80,7 @@ public class JenkinsJobManager {
         Transformer transformer = tf.newTransformer();
         StringWriter writer = new StringWriter();
         transformer.transform(new DOMSource(document), new StreamResult(writer));
+
         return writer.getBuffer().toString();
     }
 
@@ -132,19 +137,17 @@ public class JenkinsJobManager {
             String nameValue = nameElement.getTextContent();
             if (nameValue.equals(key)) {
                 Node choicesNode = nameElement.getNextSibling();
-                while (choicesNode != null && choicesNode.getNodeType() != Node.ELEMENT_NODE) {
+                while (!choicesNode.getNodeName().equals("choices")) {
                     choicesNode = choicesNode.getNextSibling();
                 }
-                if (choicesNode != null && choicesNode.getNodeName().equals("choices")) {
-                    NodeList stringNodes = ((Element) choicesNode).getElementsByTagName("string");
-                    for (int j = 0; j < stringNodes.getLength(); j++) {
-                        Element stringElement = (Element) stringNodes.item(j);
-                        stringElement.setTextContent(choiceParameter);
-                    }
-                    break;
+                NodeList stringNodes = ((Element) choicesNode).getElementsByTagName("string");
+                if (stringNodes.getLength() > 0) {
+                    Element branchNameElement = (Element) stringNodes.item(0);
+                    branchNameElement.setTextContent(choiceParameter);
                 }
             }
         }
+
         return documentToString(document);
     }
 
